@@ -18,9 +18,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return res.status(400).json({ error: "Missing required fields" });
     }
 
+    // Extract user’s phone (remove `whatsapp:` prefix)
+    const phone = From.startsWith("whatsapp:") ? From : `whatsapp:${From}`;
+
     // Echo back the message for debugging
     const response = `You said: ${Body}`;
-    await whatsappService.sendMessage(From, response);
+
+    // ✅ Send reply back to user
+    await whatsappService.sendMessage(phone, response);
 
     // ✅ Only respond once
     res.status(200).json({ message: "Echo sent successfully" });
@@ -29,6 +34,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.status(500).json({ error: "Internal server error" });
   }
 });
+
 
 
 
