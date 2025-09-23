@@ -38,16 +38,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
     try {
       switch (parsed.command) {
-        case "planting":
-          if (!parsed.crop) {
-            response = "Please specify a crop. Example: 'planting rice'";
-            break;
-          }
-          response = await openaiService.getCropPlantingAdvice(
-            parsed.crop,
-            farmer.location || undefined
-          );
-          break;
+        case 'planting':
+  if (!parsed.crop) {
+    response = "Please specify a crop. Example: 'planting rice'";
+    break;
+  }
+
+  try {
+    // Try OpenAI advice first
+    response = await openaiService.getCropPlantingAdvice(
+      parsed.crop,
+      farmer.location || undefined
+    );
+  } catch (err) {
+    console.error("OpenAI planting advice error:", err);
+
+    // 🌱 Fallback response if OpenAI fails
+    response = `🌱 Planting guide for ${parsed.crop} (basic fallback):
+- Prepare fertile, well-drained soil
+- Ensure adequate sunlight & spacing
+- Water regularly, avoid waterlogging
+- Use local best practices or ask your extension officer for details`;
+  }
+  break;
+
 
         case "weather":
           if (!parsed.crop) {
