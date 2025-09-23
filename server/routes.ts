@@ -11,110 +11,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/whatsapp/webhook", async (req, res) => {
     console.log("📩 Incoming Twilio message:", req.body);
   res.sendStatus(200);
-    try {
+
+try {
       const { From, Body } = req.body;
-      
+
       if (!From || !Body) {
         return res.status(400).json({ error: "Missing required fields" });
       }
 
-      // Extract phone number from WhatsApp format
-      const phone = From.replace('whatsapp:', '');
-      
-      // Find or create farmer
-      let farmer = await storage.getFarmerByPhone(phone);
-      if (!farmer) {
-        // Create farmer with default name (can be updated later)
-        farmer = await storage.createFarmer({
-          name: `Farmer ${phone.slice(-4)}`,
-          phone: phone,
-          location: "Philippines", // Default location
-        });
-      }
+      // Just echo back the message for debugging
+      const response = `You said: ${Body}`;
+      await whatsappService.sendMessage(From, response);
 
-      // Parse the incoming message
-      const parsed = whatsappService.parseIncomingMessage(Body);
-      
-      let response: string;
-      let queryType = parsed.command;
-      let crop = parsed.crop;
-
-      try {
-        switch (parsed.command) {
-          case 'planting':
-            if (!parsed.crop) {
-              response = "Please specify a crop. Example: 'planting rice'";
-              break;
-            }
-            response = await openaiService.getCropPlantingAdvice(parsed.crop, farmer.location || undefined);
-            break;
-
-          case 'weather':
-            if (!parsed.crop) {
-              response = "Please specify a crop. Example: 'weather corn'";
-              break;
-            }
-            const weatherData = await weatherService.getCurrentWeather(farmer.location || "Philippines");
-            const weatherAdvice = await openaiService.generateWeatherAdvice(weatherData, parsed.crop);
-            response = weatherService.formatWeatherForWhatsApp(weatherData, parsed.crop) + "\n\n📋 Advice:\n" + weatherAdvice;
-            break;
-
-          case 'pest':
-            if (!parsed.description) {
-              response = "Please describe the pest issue. Example: 'pest yellow spots on leaves'";
-              break;
-            }
-            response = await openaiService.getPestIdentification(parsed.description, parsed.crop);
-            queryType = 'pest';
-            break;
-
-          case 'help':
-          case 'unknown':
-          default:
-            response = whatsappService.generateHelpMessage();
-            queryType = 'help';
-            break;
-        }
-
-        // Log the query
-        await storage.createQuery({
-          farmerId: farmer.id,
-          queryType,
-          crop: crop || null,
-          message: Body,
-          response,
-          status: "resolved",
-          metadata: parsed.command !== 'help' ? { command: parsed.command } : null,
-        });
-
-        // Send response via WhatsApp
-        await whatsappService.sendMessage(From, response);
-        
-        res.status(200).json({ message: "Message processed successfully" });
-      } catch (serviceError) {
-        console.error('Service error:', serviceError);
-        
-        // Log failed query
-        await storage.createQuery({
-          farmerId: farmer.id,
-          queryType,
-          crop: crop || null,
-          message: Body,
-          response: null,
-          status: "failed",
-          metadata: { error: serviceError instanceof Error ? serviceError.message : "Unknown error" },
-        });
-
-        const errorResponse = "Sorry, I'm having trouble processing your request right now. Please try again later.";
-        await whatsappService.sendMessage(From, errorResponse);
-        
-        res.status(200).json({ message: "Error handled, farmer notified" });
-      }
+      res.status(200).json({ message: "Echo sent successfully" });
     } catch (error) {
-      console.error('Webhook error:', error);
+      console.error("Webhook error:", error);
       res.status(500).json({ error: "Internal server error" });
     }
   });
+
+
+
+  
 
   // Dashboard API endpoints
   app.get("/api/dashboard/stats", async (req, res) => {
