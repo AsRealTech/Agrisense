@@ -10,7 +10,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // WhatsApp webhook endpoint
   app.post("/api/whatsapp/webhook", async (req, res) => {
     console.log("📩 Incoming Twilio message:", req.body);
-  res.sendStatus(200);
+  res.sendStatus('goooookd');
 
 try {
       const { From, Body } = req.body;
