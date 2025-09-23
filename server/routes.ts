@@ -9,26 +9,27 @@ import { insertFarmerSchema, insertQuerySchema } from "@shared/schema";
 export async function registerRoutes(app: Express): Promise<Server> {
   // WhatsApp webhook endpoint
   app.post("/api/whatsapp/webhook", async (req, res) => {
-    console.log("📩 Incoming Twilio message:", req.body);
-  res.send('goooookd');
+  console.log("📩 Incoming Twilio message:", req.body);
 
-try {
-      const { From, Body } = req.body;
+  try {
+    const { From, Body } = req.body;
 
-      if (!From || !Body) {
-        return res.status(400).json({ error: "Missing required fields" });
-      }
-
-      // Just echo back the message for debugging
-      const response = `You said: ${Body}`;
-      await whatsappService.sendMessage(From, response);
-
-      res.status(200).json({ message: "Echo sent successfully" });
-    } catch (error) {
-      console.error("Webhook error:", error);
-      res.status(500).json({ error: "Internal server error" });
+    if (!From || !Body) {
+      return res.status(400).json({ error: "Missing required fields" });
     }
-  });
+
+    // Echo back the message for debugging
+    const response = `You said: ${Body}`;
+    await whatsappService.sendMessage(From, response);
+
+    // ✅ Only respond once
+    res.status(200).json({ message: "Echo sent successfully" });
+  } catch (error) {
+    console.error("Webhook error:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
 
 
 
