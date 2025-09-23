@@ -13,25 +13,127 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   try {
     const { From, Body } = req.body;
-
     if (!From || !Body) {
       return res.status(400).json({ error: "Missing required fields" });
     }
 
-    const phone = From.startsWith("whatsapp:") ? From : `whatsapp:${From}`;
+    // Extract farmer phone
+    const phone = From.replace("whatsapp:", "");
 
-    console.log("FROM (sandbox):", process.env.TWILIO_WHATSAPP_NUMBER);
-    console.log("TO (user):", phone);
+    // Find or create farmer
+    let farmer = await storage.getFarmerByPhone(phone);
+    if (!farmer) {
+      farmer = await storage.createFarmer({
+        name: `Farmer ${phone.slice(-4)}`,
+        phone,
+        location: "Philippines", // default
+      });
+    }
 
-    const response = `You said: ${Body}`;
-    await whatsappService.sendMessage(phone, response);
+    // Parse incoming message
+    const parsed = whatsappService.parseIncomingMessage(Body);
+    let response: string;
+    let queryType = parsed.command;
+    let crop = parsed.crop;
 
-    res.status(200).json({ message: "Echo sent successfully" });
+    try {
+      switch (parsed.command) {
+        case "planting":
+          if (!parsed.crop) {
+            response = "Please specify a crop. Example: 'planting rice'";
+            break;
+          }
+          response = await openaiService.getCropPlantingAdvice(
+            parsed.crop,
+            farmer.location || undefined
+          );
+          break;
+
+        case "weather":
+          if (!parsed.crop) {
+            response = "Please specify a crop. Example: 'weather corn'";
+            break;
+          }
+          const weatherData = await weatherService.getCurrentWeather(
+            farmer.location || "Philippines"
+          );
+          const weatherAdvice = await openaiService.generateWeatherAdvice(
+            weatherData,
+            parsed.crop
+          );
+          response =
+            weatherService.formatWeatherForWhatsApp(weatherData, parsed.crop) +
+            "\n\n📋 Advice:\n" +
+            weatherAdvice;
+          break;
+
+        case "pest":
+          if (!parsed.description) {
+            response =
+              "Please describe the pest issue. Example: 'pest yellow spots on leaves'";
+            break;
+          }
+          response = await openaiService.getPestIdentification(
+            parsed.description,
+            parsed.crop
+          );
+          queryType = "pest";
+          break;
+
+        default:
+          response = whatsappService.generateHelpMessage();
+          queryType = "help";
+          break;
+      }
+
+      // Save query
+      await storage.createQuery({
+        farmerId: farmer.id,
+        queryType,
+        crop: crop || null,
+        message: Body,
+        response,
+        status: "resolved",
+        metadata:
+          parsed.command !== "help" ? { command: parsed.command } : null,
+      });
+
+      // Send response
+      await whatsappService.sendMessage(From, response);
+
+      res.status(200).json({ message: "Message processed successfully" });
+    } catch (serviceError) {
+      console.error("Service error:", serviceError);
+
+      await storage.createQuery({
+        farmerId: farmer.id,
+        queryType,
+        crop: crop || null,
+        message: Body,
+        response: null,
+        status: "failed",
+        metadata: {
+          error:
+            serviceError instanceof Error
+              ? serviceError.message
+              : "Unknown error",
+        },
+      });
+
+      const errorResponse =
+        "⚠️ Sorry, I'm having trouble processing your request right now. Please try again later.";
+      await whatsappService.sendMessage(From, errorResponse);
+
+      res
+        .status(200)
+        .json({ message: "Error handled, farmer notified" });
+    }
   } catch (error) {
     console.error("Webhook error:", error);
     res.status(500).json({ error: "Internal server error" });
   }
 });
+
 
 
 
