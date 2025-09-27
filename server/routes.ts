@@ -98,17 +98,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
 
         case "pest":
-          if (!parsed.description) {
-            response =
-              "Please describe the pest issue. Example: 'pest yellow spots on leaves'";
-            break;
-          }
-          response = await openaiService.getPestIdentification(
-            parsed.description,
-            parsed.crop
-          );
-          queryType = "pest";
-          break;
+  if (!parsed.description) {
+    response =
+      "Please describe the pest issue. Example: 'pest yellow spots on leaves'";
+    break;
+  }
+
+  try {
+    response = await openaiService.getPestIdentification(
+      parsed.description,
+      parsed.crop
+    );
+  } catch (err) {
+    console.error("Pest advice service error:", err);
+
+    // Fallback response if API fails
+    response =
+      `⚠️ Unable to process pest identification right now.\n\n` +
+      `Here are some general steps you can take:\n` +
+      `- Inspect the affected ${parsed.crop || "plants"} closely for insects, larvae, or unusual patterns.\n` +
+      `- Remove and safely dispose of heavily infested leaves.\n` +
+      `- Avoid overwatering and keep good air circulation.\n` +
+      `- If infestation spreads quickly, consider safe organic options like neem oil or soap spray.\n\n` +
+      `🌱 We'll provide more specific advice once our pest service is restored.`;
+  }
+
+  queryType = "pest";
+  break;
+
 
         default:
           response = whatsappService.generateHelpMessage();
