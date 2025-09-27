@@ -63,23 +63,39 @@ export async function registerRoutes(app: Express): Promise<Server> {
   break;
 
 
-        case "weather":
-          if (!parsed.crop) {
-            response = "Please specify a crop. Example: 'weather corn'";
-            break;
-          }
-          const weatherData = await weatherService.getCurrentWeather(
-            farmer.location || "Philippines"
-          );
-          const weatherAdvice = await openaiService.generateWeatherAdvice(
-            weatherData,
-            parsed.crop
-          );
-          response =
-            weatherService.formatWeatherForWhatsApp(weatherData, parsed.crop) +
-            "\n\n📋 Advice:\n" +
-            weatherAdvice;
-          break;
+        case 'weather':
+  if (!parsed.crop) {
+    response = "Please specify a crop. Example: 'weather corn'";
+    break;
+  }
+
+  try {
+    const weatherData = await weatherService.getCurrentWeather(
+      farmer.location || "Philippines"
+    );
+    const weatherAdvice = await openaiService.generateWeatherAdvice(
+      weatherData,
+      parsed.crop
+    );
+
+    response =
+      weatherService.formatWeatherForWhatsApp(weatherData, parsed.crop) +
+      "\n\n📋 Advice:\n" +
+      weatherAdvice;
+  } catch (err) {
+    console.error("Weather/advice service error:", err);
+
+    // Fallback response if API fails
+    response =
+      `⚠️ Unable to fetch live weather data at the moment.\n` +
+      `Here’s some general advice for ${parsed.crop}:\n` +
+      `- Ensure proper soil drainage to avoid waterlogging.\n` +
+      `- Monitor for common pests after rainfall.\n` +
+      `- Water moderately if no rain is expected.\n\n` +
+      `🌱 Stay prepared while we work on restoring live updates.`;
+  }
+  break;
+
 
         case "pest":
           if (!parsed.description) {
